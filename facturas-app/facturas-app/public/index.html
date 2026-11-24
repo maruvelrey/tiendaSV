@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Facturas">
+<meta name="theme-color" content="#0e0e10"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Facturas y productos</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<style>
+:root{--bg:#0e0e10;--card:#1a1a1d;--tx:#f4eef0;--mu:#9b9499;--ac:#e8a0b8;--bd:#2e2c30;--dg:#ff8a9b;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px -apple-system,system-ui,Helvetica,Arial,sans-serif;padding:14px 14px 90px}
+h2{margin:6px 0 12px;font:600 22px Georgia,serif;letter-spacing:.5px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:12px;margin-bottom:12px}
+input,select{width:100%;padding:11px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);color:var(--tx);font-size:16px;margin-bottom:8px}
+input.sm{width:78px;margin:0;padding:8px}
+button{font:inherit;border:0;border-radius:10px;padding:10px 14px;background:var(--ac);color:#1a1a1d;font-weight:600;cursor:pointer}
+button.g{background:var(--bd);color:var(--tx)}button.d{background:transparent;color:var(--dg)}
+.r2{display:flex;gap:8px}.r2>*{flex:1}
+.row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--bd);flex-wrap:wrap}
+.row:last-child{border:0}.grow{flex:1;min-width:120px}
+small,.mu{color:var(--mu);font-size:13px;display:block}
+.qty{display:flex;align-items:center;gap:6px}.qty button{padding:4px 10px}
+.sub{min-width:70px;text-align:right;font-weight:600}
+.bc{max-width:100%;overflow-x:auto}
+nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--bd);padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px))}
+nav button{flex:1;background:none;color:var(--mu);padding:8px 2px;font-size:13px}nav button.on{color:var(--ac);font-weight:700}
+section{display:none}section.on{display:block}
+.flash{animation:fl 1.6s}@keyframes fl{0%{background:var(--ac);color:#1a1a1d}100%{background:transparent}}
+.hit{padding:10px;border-bottom:1px solid var(--bd);cursor:pointer}
+#toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 10px);transform:translateX(-50%);background:var(--ac);color:#1a1a1d;padding:10px 16px;border-radius:20px;opacity:0;transition:.3s;pointer-events:none;z-index:99;max-width:90%;text-align:center}
+#toast.on{opacity:1}
+#scan{display:none;position:fixed;inset:0;background:#000d;z-index:50;padding:20px;flex-direction:column;justify-content:center;gap:12px}
+#scan.on{display:flex}#reader{background:#000;border-radius:12px;overflow:hidden}
+.tot{font-size:22px;font-weight:700}
+.tag{display:inline-block;font-size:12px;padding:2px 9px;border-radius:10px;background:var(--bd);color:var(--ac);margin:3px 4px 0 0}
+h1{font:600 28px Georgia,serif;letter-spacing:1.5px;margin:4px 0 0;color:var(--ac);cursor:pointer}
+.bc svg{border-radius:8px}
+</style></head><body>
+<div id="toast"></div>
+<div id="scan"><div id="reader"></div><p style="color:#fff;text-align:center;margin:0">Apunta al código de barras</p><button class="g" onclick="closeScan()">Cancelar</button></div>
+
+<h1 id="brand" onclick="setBrand()"></h1><small id="cloud" style="margin:2px 0 8px">Guardado solo en este teléfono</small>
+<section id="s-p" class="on">
+<h2>Productos</h2>
+<div class="card">
+<input id="pn" placeholder="Nombre (ej. Blusa satinada)" autocomplete="off">
+<div class="r2"><select id="pc"><option>Ropa</option><option>Calzado</option><option>Accesorios</option><option>Bolsos</option><option>Joyería</option><option>Belleza</option><option>Otros</option></select><input id="pb" placeholder="Marca"></div>
+<div class="r2"><input id="ps" placeholder="Talla (S, M, 38…)"><input id="pk" placeholder="Color"></div>
+<div class="r2"><input id="pp" type="number" inputmode="decimal" step="0.01" placeholder="Precio venta (Q)"><input id="pco" type="number" inputmode="decimal" step="0.01" placeholder="Costo (Q)"></div>
+<input id="pq" type="number" inputmode="numeric" value="1" placeholder="Cantidad">
+<button style="width:100%" onclick="addP()">Registrar producto</button>
+<small style="margin-top:8px">Cada combinación de nombre + talla + color tiene su propio código. Si ya existe, se suma la cantidad.</small>
+</div>
+<div class="r2" style="margin-bottom:8px"><input id="q" placeholder="Buscar por nombre o código" oninput="rP()" style="margin:0"><button style="flex:0 0 auto" onclick="openScan(c=>{q.value=c;rP()})">📷 Escanear</button></div>
+<div id="plist"></div>
+</section>
+
+<section id="s-f">
+<h2>Nueva factura</h2>
+<div class="card">
+<input id="cn" placeholder="Nombre del cliente" oninput="cur.name=this.value">
+<input id="ct" type="tel" placeholder="Teléfono del cliente" oninput="cur.phone=this.value" style="margin:0">
+</div>
+<div class="card">
+<div class="r2" style="margin-bottom:6px"><input id="iq" placeholder="Buscar o escribir código" oninput="rH()" onkeydown="if(event.key==='Enter')addByCode(this.value.trim())" style="margin:0"><button style="flex:0 0 auto" onclick="openScan(addByCode)">📷 Escanear</button></div>
+<div id="hits"></div>
+</div>
+<div class="card"><div id="items"></div></div>
+<div class="card">
+<div class="mu" id="subl"></div>
+<label class="mu">Total a pagar (editable)</label>
+<div class="r2"><input id="tot" type="number" inputmode="decimal" step="0.01" class="tot" onchange="cur.manual=true;cur.total=+this.value||0;rI()" style="margin:0"><button id="auto" class="g" style="flex:0 0 auto;display:none" onclick="cur.manual=false;rI()">Auto</button></div>
+</div>
+<div class="r2"><button onclick="finish(false)">Guardar PDF</button><button onclick="finish(true)">Compartir PDF</button></div>
+</section>
+
+<section id="s-h">
+<h2>Historial</h2>
+<div id="hist"></div>
+<div class="card"><b>Excel / Google Sheets</b><small style="margin-bottom:8px">Descarga tus datos como CSV; se abren directo en Excel o Google Sheets.</small>
+<div class="r2"><button class="g" onclick="csvP()">Productos</button><button class="g" onclick="csvF()">Facturas</button></div></div>
+</section>
+
+<nav><button class="on" data-t="p" onclick="tab('p')">📦 Productos</button><button data-t="f" onclick="tab('f')">🧾 Factura</button><button data-t="h" onclick="tab('h')">🗂 Historial</button></nav>
+
+<script>
+const $=id=>document.getElementById(id);
+const K='fx1';let db={products:[],invoices:[],n:0};
+try{const s=localStorage.getItem(K);if(s)db=JSON.parse(s)}catch(e){}
+const save=()=>{try{localStorage.setItem(K,JSON.stringify(db))}catch(e){}sync()};
+const full=p=>p.name+[p.size,p.color].filter(Boolean).map(x=>' · '+x).join('');
+const txt=p=>norm(full(p)+' '+(p.cat||'')+' '+(p.brand||''));
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const money=n=>'Q'+(+n||0).toFixed(2);
+const norm=s=>s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
+function h53(s){let a=0xdeadbeef,b=0x41c6ce57;for(let i=0;i<s.length;i++){const c=s.charCodeAt(i);a=Math.imul(a^c,2654435761);b=Math.imul(b^c,1597334677)}a=Math.imul(a^(a>>>16),2246822507)^Math.imul(b^(b>>>13),3266489909);b=Math.imul(b^(b>>>16),2246822507)^Math.imul(a^(a>>>13),3266489909);return 4294967296*(2097151&b)+(a>>>0)}
+function ean(name){const d='2'+String(h53(norm(name))%1e11).padStart(11,'0');let s=0;for(let i=0;i<12;i++)s+=+d[i]*(i%2?3:1);return d+((10-s%10)%10)}
+let tt;function toast(m){const t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),2200)}
+function tab(t){document.querySelectorAll('section').forEach(s=>s.classList.toggle('on',s.id==='s-'+t));document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));if(t==='h')rHist();scrollTo(0,0)}
+let scanner=null;
+function openScan(cb){$('scan').classList.add('on');try{const F=Html5QrcodeSupportedFormats;scanner=new Html5Qrcode('reader',{formatsToSupport:[F.EAN_13,F.EAN_8,F.UPC_A,F.CODE_128]});scanner.start({facingMode:'environment'},{fps:10,qrbox:{width:260,height:140}},t=>{closeScan();cb(t)},()=>{}).catch(()=>{toast('No se pudo abrir la cámara');closeScan()})}catch(e){toast('Escáner no disponible');closeScan()}}
+function closeScan(){$('scan').classList.remove('on');if(scanner){const s=scanner;scanner=null;s.stop().then(()=>s.clear()).catch(()=>{})}}
+function bcs(root){root.querySelectorAll('svg.bc').forEach(e=>{try{JsBarcode(e,e.dataset.c,{format:'EAN13',height:44,fontSize:13,margin:6,background:'#ffffff'})}catch(x){}})}
+/* Productos */
+function addP(){const name=pn.value.trim();if(!name)return toast('Escribe el nombre');const price=parseFloat(pp.value),cost=parseFloat(pco.value),qty=parseInt(pq.value)||1,size=ps.value.trim(),color=pk.value.trim(),code=ean(name+'|'+size+'|'+color);
+let p=db.products.find(x=>x.code===code);
+if(p){p.stock+=qty;if(!isNaN(price))p.price=price;if(!isNaN(cost))p.cost=cost;toast('Ya existía: se sumó al stock (mismo código)')}
+else{db.products.push({code,name,cat:pc.value,brand:pb.value.trim(),size,color,price:isNaN(price)?0:price,cost:isNaN(cost)?0:cost,stock:qty});toast('Producto registrado')}
+save();[pn,pp,pco,pb,ps,pk].forEach(e=>e.value='');pq.value=1;rP()}
+function rP(){const f=norm(q.value);const l=db.products.filter(p=>!f||txt(p).includes(f)||p.code.includes(f));
+plist.innerHTML=l.map(p=>`<div class="card"><div class="row" style="border:0;padding:0"><div class="grow"><b>${esc(p.name)}</b><div><span class="tag">${esc(p.cat||'')}</span>${p.brand?`<span class="tag">${esc(p.brand)}</span>`:''}${p.size?`<span class="tag">Talla ${esc(p.size)}</span>`:''}${p.color?`<span class="tag">${esc(p.color)}</span>`:''}</div><small>${money(p.price)} · Stock: ${p.stock}</small></div></div><div class="bc"><svg class="bc" data-c="${p.code}"></svg></div><div class="r2"><button onclick="addByCode('${p.code}');tab('f')">+ Factura</button><button class="g" onclick="editP('${p.code}')">Editar</button><button class="d" onclick="delP('${p.code}')">Borrar</button></div></div>`).join('')||'<p class="mu">Sin productos todavía.</p>';bcs(plist)}
+function editP(c){const p=db.products.find(x=>x.code===c);const v=prompt('Precio de '+p.name,p.price);if(v===null)return;const s=prompt('Cantidad en existencia',p.stock);if(!isNaN(parseFloat(v)))p.price=parseFloat(v);if(s!==null&&!isNaN(parseInt(s)))p.stock=parseInt(s);save();rP()}
+function delP(c){if(confirm('¿Borrar este producto?')){db.products=db.products.filter(x=>x.code!==c);save();rP()}}
+/* Factura */
+let cur={name:'',phone:'',items:[],manual:false,total:0,flash:''};
+function addByCode(c){const p=db.products.find(x=>x.code===c);if(!p)return toast('Código no registrado: '+c);
+const it=cur.items.find(x=>x.code===c);if(it)it.qty++;else cur.items.push({code:p.code,name:full(p),price:p.price,qty:1});
+cur.flash=c;iq.value='';rH();rI();toast('✓ Agregado: '+full(p));cur.flash=''}
+function rH(){const f=norm(iq.value);hits.innerHTML=f?db.products.filter(p=>txt(p).includes(f)||p.code.includes(f)).slice(0,6).map(p=>`<div class="hit" onclick="addByCode('${p.code}')"><b>${esc(full(p))}</b> <small>${money(p.price)} · ${p.code}</small></div>`).join('')||'<small>Sin resultados</small>':''}
+function rI(){let sum=0;cur.items.forEach(i=>sum+=i.price*i.qty);if(!cur.manual)cur.total=sum;
+items.innerHTML=cur.items.map((it,i)=>`<div class="row ${cur.flash===it.code?'flash':''}"><div class="grow"><b>${esc(it.name)}</b><small>${it.code}</small></div><input class="sm" type="number" inputmode="decimal" step="0.01" value="${it.price}" onchange="setP(${i},this.value)"><div class="qty"><button class="g" onclick="qty(${i},-1)">−</button><span>${it.qty}</span><button class="g" onclick="qty(${i},1)">+</button></div><span class="sub">${money(it.price*it.qty)}</span></div>`).join('')||'<p class="mu">Escanea o busca un producto para agregarlo.</p>';
+subl.textContent='Subtotal: '+money(sum);tot.value=(+cur.total).toFixed(2);auto.style.display=cur.manual?'block':'none'}
+function setP(i,v){cur.items[i].price=parseFloat(v)||0;rI()}
+function qty(i,d){cur.items[i].qty+=d;if(cur.items[i].qty<=0)cur.items.splice(i,1);rI()}
+function finish(share){if(!cur.items.length)return toast('Agrega al menos un producto');
+const rec={n:++db.n,date:new Date().toLocaleString('es-GT'),name:cur.name||'Cliente',phone:cur.phone,items:cur.items,total:+cur.total,sub:cur.items.reduce((s,i)=>s+i.price*i.qty,0)};
+db.invoices.push(rec);save();pdf(rec,share);
+cur={name:'',phone:'',items:[],manual:false,total:0,flash:''};cn.value='';ct.value='';rI();toast('Factura #'+rec.n+' guardada')}
+function pdf(r,share){const d=new jspdf.jsPDF({unit:'mm',format:'a4'});
+d.setFontSize(20);d.text(db.store||'Mi Boutique',14,16);d.setFontSize(11);d.text('FACTURA #'+String(r.n).padStart(4,'0')+'  ·  '+r.date,14,24);d.setFontSize(10);
+d.setFontSize(12);d.text('Cliente: '+r.name,14,34);d.text('Teléfono: '+(r.phone||'-'),14,41);
+let y=52;const head=()=>{d.setFontSize(10);d.setFont(undefined,'bold');d.text('Código',14,y);d.text('Producto',56,y);d.text('Cant.',120,y);d.text('Precio',140,y);d.text('Subtotal',172,y);d.setFont(undefined,'normal');y+=4};head();
+r.items.forEach(i=>{if(y>262){d.addPage();y=16;head()}
+const c=document.createElement('canvas');try{JsBarcode(c,i.code,{format:'EAN13',height:40,fontSize:16,margin:4});d.addImage(c.toDataURL('image/png'),'PNG',14,y,38,14)}catch(e){}
+d.setFontSize(10);d.text(d.splitTextToSize(i.name,58),56,y+5);d.text(String(i.qty),120,y+5);d.text(money(i.price),140,y+5);d.text(money(i.price*i.qty),172,y+5);y+=18});
+y+=4;if(y>270){d.addPage();y=20}
+if(Math.abs(r.sub-r.total)>0.001){d.setFontSize(11);d.text('Subtotal: '+money(r.sub),196,y,{align:'right'});y+=7}
+d.setFontSize(15);d.setFont(undefined,'bold');d.text('Total a pagar: '+money(r.total),196,y,{align:'right'});
+out(d.output('blob'),'Factura-'+r.n+'.pdf','application/pdf',share)}
+function out(blob,name,type,share){const f=new File([blob],name,{type});
+if(share&&navigator.canShare&&navigator.canShare({files:[f]})){navigator.share({files:[f],title:name}).catch(()=>{});return}
+const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove()}
+/* Historial */
+function rHist(){hist.innerHTML=db.invoices.slice().reverse().map(r=>`<div class="card"><b>#${String(r.n).padStart(4,'0')} · ${esc(r.name)}</b><small>${r.date} · ${esc(r.phone||'')} · ${r.items.length} producto(s)</small><div class="tot" style="margin:6px 0">${money(r.total)}</div><div class="r2"><button class="g" onclick="pdf(db.invoices.find(x=>x.n===${r.n}),false)">PDF</button><button onclick="pdf(db.invoices.find(x=>x.n===${r.n}),true)">Compartir</button><button class="d" onclick="delF(${r.n})">Borrar</button></div></div>`).join('')||'<p class="mu">Aún no hay facturas.</p>'}
+function delF(n){if(confirm('¿Borrar factura?')){db.invoices=db.invoices.filter(x=>x.n!==n);save();rHist()}}
+const cv=v=>'"'+String(v).replace(/"/g,'""')+'"';
+function csvP(){out(new Blob(['\ufeff'+['Codigo,Producto,Categoria,Marca,Talla,Color,Precio,Costo,Cantidad',...db.products.map(p=>[p.code,cv(p.name),cv(p.cat||''),cv(p.brand||''),cv(p.size||''),cv(p.color||''),p.price,p.cost||0,p.stock].join(','))].join('\n')],{type:'text/csv'}),'productos.csv','text/csv',true)}
+function csvF(){out(new Blob(['\ufeff'+['Factura,Fecha,Cliente,Telefono,Total,Detalle',...db.invoices.map(r=>[r.n,cv(r.date),cv(r.name),cv(r.phone||''),r.total,cv(r.items.map(i=>i.qty+'x '+i.name).join('; '))].join(','))].join('\n')],{type:'text/csv'}),'facturas.csv','text/csv',true)}
+function setBrand(){const v=prompt('Nombre de tu tienda',db.store||'Mi Boutique');if(v&&v.trim()){db.store=v.trim();save();$('brand').textContent='✦ '+db.store}}
+let rdb=null,uid=null,sy={},sq=Promise.resolve();
+const setCs=m=>{$('cloud').textContent=m};
+function sync(){if(rdb)sq=sq.then(doSync)}
+async function doSync(){try{const col=rdb.collection('data/users/'+uid),now={};
+db.products.forEach(p=>now['p'+p.code]=p);db.invoices.forEach(r=>now['i'+r.n]=r);now.meta={store:db.store||'',n:db.n};
+for(const k in now){const s=JSON.stringify(now[k]);if(sy[k]!==s){await col.doc(k).set(now[k]);sy[k]=s}}
+for(const k in sy)if(!(k in now)){await col.doc(k).delete();delete sy[k]}
+setCs('☁ Guardado en la nube')}catch(e){setCs('☁ No se pudo sincronizar')}}
+async function initCloud(){try{const [d,u]=await Promise.all([claude.use('db'),claude.use('user')]);
+if(!d||!u){setCs('Sin nube: inicia sesión en claude.ai (datos solo en este teléfono)');return}
+uid=await u.id();if(!uid)return;const col=d.collection('data/users/'+uid);setCs('☁ Conectando…');
+const snap=await col.get();
+snap.docs.forEach(s=>{const x=s.data(),k=s.id;sy[k]=JSON.stringify(x);
+if(k==='meta'){if(x.store)db.store=x.store;db.n=Math.max(db.n,x.n||0)}
+else if(k[0]==='p'){const i=db.products.findIndex(p=>p.code===x.code);i<0?db.products.push(x):db.products[i]=x}
+else{const i=db.invoices.findIndex(r=>r.n===x.n);i<0?db.invoices.push(x):db.invoices[i]=x;db.n=Math.max(db.n,x.n)}});
+db.invoices.sort((a,b)=>a.n-b.n);rdb=d;save();rP();$('brand').textContent='✦ '+(db.store||'Mi Boutique')}catch(e){setCs('Sin nube (datos solo en este teléfono)')}}
+rP();rI();$('brand').textContent='✦ '+(db.store||'Mi Boutique');initCloud();
+</script></body></html>

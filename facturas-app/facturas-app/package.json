@@ -1,0 +1,8 @@
+{
+  "name": "facturas-boutique",
+  "version": "1.0.0",
+  "description": "Productos con código de barras y facturas PDF para tienda",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "license": "MIT"
+}
